@@ -13,28 +13,30 @@ const baseArgs = {
   strength: .99,
   seed
 }
+
 export default function Home() {
-  const [input, setInput] = useState('masterpice, best quality, A cinematic shot of a baby raccoon wearing an intricate italian priest robe')
+  const [input, setInput] = useState('masterpiece, best quality, A cinematic shot of a baby raccoon wearing an intricate Italian priest robe')
   const [image, setImage] = useState(null)
-  const [sceneData, setSceneData] = useState<any>(null)
-  const [excalidrawAPI, setExcalidrawAPI] = useState<any>(null)
-  const [_appState, setAppState] = useState<any>(null)
-  const [excalidrawExportFns, setexcalidrawExportFns] = useState<any>(null)
+  const [videoRef, setVideoRef] = useState<HTMLVideoElement | null>(null);
   const [isClient, setIsClient] = useState<boolean>(false)
 
-  const [Comp, setComp] = useState<any>(null);
-  useEffect(() => {
-    import('@excalidraw/excalidraw').then((comp) => setComp(comp.Excalidraw))
-  }, [])
   useEffect(() => { setIsClient(true) }, [])
+
   useEffect(() => {
-    import('@excalidraw/excalidraw').then((module) =>
-      setexcalidrawExportFns({
-        exportToBlob: module.exportToBlob,
-        serializeAsJSON: module.serializeAsJSON
-      })
-    );
-  }, []);
+    if (isClient && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      const video = videoRef;
+      if (video) {
+        navigator.mediaDevices.getUserMedia({ video: true })
+          .then((stream) => {
+            video.srcObject = stream;
+            video.play();
+          })
+          .catch((err) => {
+            console.error("Error accessing the camera:", err);
+          });
+      }
+    }
+  }, [videoRef, isClient]);
 
   const { send } = fal.realtime.connect('110602490-sdxl-turbo-realtime', {
     connectionKey: 'realtime-nextjs-app',
@@ -44,61 +46,22 @@ export default function Home() {
     }
   })
 
-  async function getDataUrl(appState = _appState) {
-    const elements = excalidrawAPI.getSceneElements()
-    if (!elements || !elements.length) return
-    const blob = await excalidrawExportFns.exportToBlob({
-      elements,
-      exportPadding: 0,
-      appState,
-      quality: 0.5,
-      files: excalidrawAPI.getFiles(),
-      getDimensions: () => { return {width: 450, height: 450}}
-    })
-    return await new Promise(r => {let a=new FileReader(); a.onload=r; a.readAsDataURL(blob)}).then((e:any) => e.target.result)
-  }
-
   return (
     <main className="p-12">
       <p className="text-xl mb-2">Fal SDXL Turbo</p>
       <input
         className='border rounded-lg p-2 w-full mb-2'
         value={input}
-        onChange={async (e) => {
+        onChange={(e) => {
           setInput(e.target.value)
-          let dataUrl = await getDataUrl()
-          send({
-            ...baseArgs,
-            prompt: e.target.value,
-            image_url: dataUrl
-          })
+          // Here you would handle sending the new input value, perhaps with new image data from the webcam.
         }}
       />
       <div className='flex'>
-        <div className="w-[550px] h-[570px]">
+        <div className="w-[550px] h-[550px] bg-black">
           {
-            isClient && excalidrawExportFns && (
-              <Comp
-                excalidrawAPI={(api)=> setExcalidrawAPI(api)}
-                onChange={async (elements, appState) => {
-                  const newSceneData = excalidrawExportFns.serializeAsJSON(
-                    elements,
-                    appState,
-                    excalidrawAPI.getFiles(),
-                    'local'
-                  )
-                  if (newSceneData !== sceneData) {
-                    setAppState(appState)
-                    setSceneData(newSceneData)
-                    let dataUrl = await getDataUrl(appState)
-                    send({
-                      ...baseArgs,
-                      image_url: dataUrl,
-                      prompt: input,
-                    })
-                  }
-                }}
-              />
+            isClient && (
+              <video ref={(ref) => setVideoRef(ref)} width="550" height="550" autoPlay muted playsInline></video>
             )
           }
         </div>
